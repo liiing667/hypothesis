@@ -597,6 +597,47 @@ def test_ascii_characters_still_fold_under_ascii_flag():
     find_any(strategy, lambda s: s == "I")
 
 
+@pytest.mark.parametrize(
+    "pattern",
+    [
+        r"\w+",
+        r"[\w]+",
+        r"[^\d]+",
+        r".",
+        r"a\w+\b",
+        r"\s*\d{2,4}\S*",
+        r"\A\w+\Z",
+        r"(?a)\w+",
+    ],
+)
+@pytest.mark.parametrize("fullmatch", [False, True])
+def test_ascii_flag_restricts_default_alphabet_to_ascii(pattern, fullmatch):
+    # re.ASCII defaults the generation alphabet to ascii, so character
+    # classes, ".", \w/\b and any padding around the match are all ascii.
+    regex = re.compile(pattern, re.ASCII)
+    strategy = st.from_regex(regex, fullmatch=fullmatch)
+    assert_all_examples(strategy, is_ascii)
+    if fullmatch:
+        assert_all_examples(strategy, regex.fullmatch)
+    else:
+        assert_all_examples(strategy, lambda s: regex.search(s))
+
+
+def test_ascii_flag_default_alphabet_can_be_overridden():
+    # An explicit alphabet= overrides the ascii default; under re.ASCII "."
+    # still matches non-ascii characters in the real regex engine.
+    strategy = st.from_regex(re.compile(r".", re.ASCII), alphabet=st.characters())
+    find_any(strategy, lambda s: not is_ascii(s))
+
+
+def test_ascii_pattern_requiring_non_ascii_raises():
+    # A pattern which needs non-ascii characters can't be generated from the
+    # ascii default alphabet, and fails with a clear error rather than
+    # generating non-matching input.
+    with pytest.raises(InvalidArgument, match="specified alphabet"):
+        st.from_regex(re.compile("é", re.ASCII)).validate()
+
+
 def test_class_with_negative_category_and_positive_members():
     # [\W_] matches the union of \W and {"_"} - see issue #4859
     regex = re.compile(r"[\W_]")

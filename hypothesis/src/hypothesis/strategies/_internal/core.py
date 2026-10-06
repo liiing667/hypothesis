@@ -950,6 +950,10 @@ def from_regex(
     for example, by being a |st.characters|, |st.sampled_from|, or a |st.one_of| union
     of such strategies.
 
+    If ``alphabet`` is not specified, it defaults to all valid unicode characters,
+    or to ASCII characters only if the pattern was compiled with the
+    :obj:`python:re.ASCII` flag.
+
     Examples from this strategy shrink towards shorter strings and lower
     character values, with exact behaviour that may depend on the pattern.
     """
@@ -969,7 +973,19 @@ def from_regex(
             )
         alphabet = resolved
     elif isinstance(pattern, str):
-        alphabet = characters(codec="utf-8")
+        if isinstance(regex, re.Pattern):
+            flags = regex.flags
+        else:
+            flags = re.compile(regex).flags
+        if flags & re.ASCII:
+            # Patterns compiled with re.ASCII match non-ASCII characters only
+            # via explicit literals or ranges, so we default to an ASCII-only
+            # alphabet.  This keeps generated strings (including any padding
+            # around the match) free of non-ASCII characters, which such
+            # patterns and downstream ASCII-only consumers reject.
+            alphabet = characters(codec="ascii")
+        else:
+            alphabet = characters(codec="utf-8")
 
     # TODO: We would like to move this to the top level, but pending some major
     # refactoring it's hard to do without creating circular imports.
